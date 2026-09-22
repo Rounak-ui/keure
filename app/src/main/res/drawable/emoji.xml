@@ -1,0 +1,81 @@
+<!--
+  ~ Copyright (C) 2026 The Android Open Source Project
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~      http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:tint="#FFFFFF"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="
+
+        M620,440
+        Q645,440 662.5,422.5
+        Q680,405 680,380
+        Q680,355 662.5,337.5
+        Q645,320 620,320
+        Q595,320 577.5,337.5
+        Q560,355 560,380
+        Q560,405 577.5,422.5
+        Q595,440 620,440
+
+        M340,440
+        Q365,440 382.5,422.5
+        Q400,405 400,380
+        Q400,355 382.5,337.5
+        Q365,320 340,320
+        Q315,320 297.5,337.5
+        Q280,355 280,380
+        Q280,405 297.5,422.5
+        Q315,440 340,440
+
+        M603.5,661.5
+        Q659,623 684,560
+        L276,560
+        Q301,623 356.5,661.5
+        Q412,700 480,700
+        Q548,700 603.5,661.5
+
+        M320,830
+        Q245,800 190,745
+        Q135,690 105,615
+        Q75,540 75,480
+        Q75,420 105,345
+        Q135,270 190,215
+        Q245,160 320,130
+        Q395,100 480,100
+        Q565,100 640,130
+        Q715,160 770,215
+        Q825,270 855,345
+        Q885,420 885,480
+        Q885,540 855,615
+        Q825,690 770,745
+        Q715,800 640,830
+        Q565,860 480,860
+        Q395,860 320,830
+
+        M692,692
+        Q780,604 780,480
+        Q780,356 692,268
+        Q604,180 480,180
+        Q356,180 268,268
+        Q180,356 180,480
+        Q180,604 268,692
+        Q356,780 480,780
+        Q604,780 692,692Z"/>
+</vector>
