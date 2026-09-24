@@ -26,6 +26,11 @@ class GestureAwareKeyboardLayout(context: Context, attrs: AttributeSet?) : Linea
     private var downTime = 0L
     private var trackingPointerId = -1
 
+    var gestureOverlay: GestureOverlayView? = null
+
+    private var lastDx = 0f
+    private var lastDy = 0f
+
     private val holdThresholdMs = 350L
     private val holdHandler = Handler(Looper.getMainLooper())
     private var holdRunnable: Runnable? = null
@@ -35,6 +40,16 @@ class GestureAwareKeyboardLayout(context: Context, attrs: AttributeSet?) : Linea
 
     fun addCursorHoldExclusion(view: View) {
         excludedFromCursorHold.add(view)
+    }
+
+    private fun cancelAllChildPresses(view: View) {
+        if (view is android.view.ViewGroup) {
+            for (i in 0 until view.childCount) cancelAllChildPresses(view.getChildAt(i))
+        }
+        if (view.isPressed) {
+            view.isPressed = false
+        }
+        view.background?.jumpToCurrentState()
     }
 
     private fun isTouchOnExcludedView(touchX: Float, touchY: Float): Boolean {
@@ -72,6 +87,8 @@ class GestureAwareKeyboardLayout(context: Context, attrs: AttributeSet?) : Linea
                     val isLeftHalf = downX < width / 2f
                     holdRunnable = Runnable {
                         cursorModeActive = true
+                        cancelAllChildPresses(this)
+                        gestureOverlay?.startHold(downX, downY)
                         cursorController?.start(inputConnectionProvider?.invoke(), isLeftHalf)
                     }
                     holdHandler.postDelayed(holdRunnable!!, holdThresholdMs)
@@ -100,7 +117,13 @@ class GestureAwareKeyboardLayout(context: Context, attrs: AttributeSet?) : Linea
 
                 val dx = ev.getX(pointerIndex) - downX
                 val dy = ev.getY(pointerIndex) - downY
+                lastDx = dx
+                lastDy = dy
                 val elapsed = System.currentTimeMillis() - downTime
+
+                if (cursorModeActive) {
+                    gestureOverlay?.updateHold(ev.getX(pointerIndex), ev.getY(pointerIndex))
+                }
 
                 if (!panelModeActive && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
                     cancelHold()
@@ -119,6 +142,8 @@ class GestureAwareKeyboardLayout(context: Context, attrs: AttributeSet?) : Linea
                     if (detected != GestureEngine.DetectedGesture.NONE &&
                         detected != GestureEngine.DetectedGesture.DOWN
                     ) {
+                        gestureOverlay?.triggerSwipe(downX, downY, lastDx, lastDy)
+                        cancelAllChildPresses(this)
                         gestureFired = true
                         return true
                     }
@@ -131,6 +156,7 @@ class GestureAwareKeyboardLayout(context: Context, attrs: AttributeSet?) : Linea
                 if (!panelModeActive && cursorModeActive) {
                     cursorController?.stop()
                     cursorModeActive = false
+                    gestureOverlay?.stopHold()
                     return true
                 }
             }
@@ -145,6 +171,7 @@ class GestureAwareKeyboardLayout(context: Context, attrs: AttributeSet?) : Linea
                 if (!panelModeActive && cursorModeActive) {
                     cursorController?.stop()
                     cursorModeActive = false
+                    gestureOverlay?.stopHold()
                 }
             }
         }

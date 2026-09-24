@@ -174,7 +174,6 @@ class KeureKeyboardService : InputMethodService() {
         }
 
         setupBackspaceButton(keyboardView.findViewById(R.id.key_emoji_backspace))
-
         setupBackspaceButton(keyboardView.findViewById(R.id.key_sym2_backspace))
 
         val sym2ToPage1Button = keyboardView.findViewById<Button>(R.id.key_sym2_toPage1)
@@ -238,18 +237,45 @@ class KeureKeyboardService : InputMethodService() {
 
         // Gesture engine: left = undo, right = cycle layers, up = open pager, down = close pager
         keyboardView.gestureEngine = GestureEngine(
-            onSwipeLeft = { undoManager.undo(currentInputConnection) },
+            onSwipeLeft = { cycleLayerBackward(keyboardView) },
             onSwipeRight = { cycleLayerForward(keyboardView) },
             onSwipeUp = { openEmojiPanel(keyboardView) },
-            onSwipeDown = { closeEmojiPanel(keyboardView) }
+            onSwipeDown = { closeEmojiPanel(keyboardView) },
+            onDiagonalUndo = { undoManager.undo(currentInputConnection) }
         )
 
         keyboardView.cursorController = cursorController
         keyboardView.inputConnectionProvider = { currentInputConnection }
 
+        val overlay = GestureOverlayView(this)
+        keyboardView.gestureOverlay = overlay
+
+        val frame = android.widget.FrameLayout(this)
+        frame.addView(
+            keyboardView,
+            android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+        val overlayParams = android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+        )
+        frame.addView(overlay, overlayParams)
+        overlay.bringToFront()
+
+        keyboardView.viewTreeObserver.addOnGlobalLayoutListener {
+            val h = keyboardView.height
+            if (h > 0 && overlay.layoutParams.height != h) {
+                overlay.layoutParams = overlay.layoutParams.apply { height = h }
+                overlay.requestLayout()
+            }
+        }
+
         applyLayerVisibility(keyboardView)
         updateSuggestionBar(keyboardView)
-        return keyboardView
+        return frame
     }
 
     private fun cycleLayerForward(keyboardView: GestureAwareKeyboardLayout) {
@@ -261,6 +287,19 @@ class KeureKeyboardService : InputMethodService() {
             }
             KeyboardLayer.SYMBOLS_1 -> KeyboardLayer.SYMBOLS_2
             KeyboardLayer.SYMBOLS_2 -> KeyboardLayer.LETTERS
+        }
+        applyLayerVisibility(keyboardView)
+    }
+
+    private fun cycleLayerBackward(keyboardView: GestureAwareKeyboardLayout) {
+        currentLayer = when (currentLayer) {
+            KeyboardLayer.LETTERS -> {
+                val lettersContainer = keyboardView.findViewById<LinearLayout>(R.id.letters_container)
+                if (lettersContainer.height > 0) cachedLettersHeight = lettersContainer.height
+                KeyboardLayer.SYMBOLS_2
+            }
+            KeyboardLayer.SYMBOLS_2 -> KeyboardLayer.SYMBOLS_1
+            KeyboardLayer.SYMBOLS_1 -> KeyboardLayer.LETTERS
         }
         applyLayerVisibility(keyboardView)
     }

@@ -6,7 +6,8 @@ class GestureEngine(
     private val onSwipeLeft: () -> Unit,
     private val onSwipeRight: () -> Unit,
     private val onSwipeUp: () -> Unit,
-    private val onSwipeDown: () -> Unit
+    private val onSwipeDown: () -> Unit,
+    private val onDiagonalUndo: () -> Unit
 ) {
     private val swipeMinDistanceFraction = 0.20f
     private val swipeMaxVerticalDrift = 150f
@@ -15,19 +16,28 @@ class GestureEngine(
     private val swipeVerticalMinDistance = 100f
     private val swipeVerticalMaxHorizontalDrift = 60f
 
-    enum class DetectedGesture { NONE, LEFT, RIGHT, UP, DOWN }
+    // Diagonal (upper-right -> lower-left) thresholds
+    private val diagonalMinComponent = 90f   // both dx and dy must travel at least this far
+    private val diagonalRatioMin = 0.4f      // how "diagonal" it must be (not too flat, not too steep)
+    private val diagonalRatioMax = 2.5f
+
+    enum class DetectedGesture { NONE, LEFT, RIGHT, UP, DOWN, DIAGONAL_UNDO }
 
     private var pendingGesture = DetectedGesture.NONE
 
-    /**
-     * Evaluates the current drag vector and returns which gesture it matches,
-     * if any. The caller decides whether to act on it (this lets panel mode
-     * ignore LEFT/RIGHT/UP and only react to DOWN, for example).
-     */
     fun detectGesture(dx: Float, dy: Float, elapsedMs: Long, keyboardWidth: Int): DetectedGesture {
         if (elapsedMs >= swipeMaxDuration) {
             pendingGesture = DetectedGesture.NONE
             return pendingGesture
+        }
+
+        // Diagonal check first: moving left (dx < 0) AND down (dy > 0), both components substantial
+        if (dx < -diagonalMinComponent && dy > diagonalMinComponent) {
+            val ratio = abs(dx) / abs(dy)
+            if (ratio in diagonalRatioMin..diagonalRatioMax) {
+                pendingGesture = DetectedGesture.DIAGONAL_UNDO
+                return pendingGesture
+            }
         }
 
         val isMostlyVertical = abs(dy) > abs(dx)
@@ -64,6 +74,7 @@ class GestureEngine(
             DetectedGesture.RIGHT -> onSwipeRight()
             DetectedGesture.UP -> onSwipeUp()
             DetectedGesture.DOWN -> onSwipeDown()
+            DetectedGesture.DIAGONAL_UNDO -> onDiagonalUndo()
             DetectedGesture.NONE -> {}
         }
         pendingGesture = DetectedGesture.NONE
