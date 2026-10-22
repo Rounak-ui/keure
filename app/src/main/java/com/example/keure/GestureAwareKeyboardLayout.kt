@@ -139,9 +139,7 @@ class GestureAwareKeyboardLayout(context: Context, attrs: AttributeSet?) : Linea
                     }
                     return false
                 } else {
-                    if (detected != GestureEngine.DetectedGesture.NONE &&
-                        detected != GestureEngine.DetectedGesture.DOWN
-                    ) {
+                    if (detected != GestureEngine.DetectedGesture.NONE) {
                         gestureOverlay?.triggerSwipe(downX, downY, lastDx, lastDy)
                         cancelAllChildPresses(this)
                         gestureFired = true

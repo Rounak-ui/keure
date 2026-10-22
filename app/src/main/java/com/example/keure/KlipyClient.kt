@@ -4,65 +4,91 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.IOException
+import java.net.URLEncoder
 
-data class GifResult(val previewUrl: String, val fullUrl: String, val insertUrl: String)
+data class GifResult(
+    val previewUrl: String,
+    val fullUrl: String,
+    val insertUrl: String,
+    val mimeType: String = "image/gif",
+    val type: String = "gifs" // "gifs" or "stickers", so recents stay separate
+)
 
 object KlipyClient {
     private const val API_KEY = BuildConfig.KLIPY_API_KEY
     val client = OkHttpClient()
 
-    fun fetchTrending(onResult: (List<GifResult>) -> Unit) {
-        android.util.Log.d("KeureGif", "API_KEY = '$API_KEY'")
-        val url = "https://api.klipy.com/api/v1/$API_KEY/gifs/trending?limit=50"
-        android.util.Log.d("KeureGif", "Requesting URL = $url")
-        fetch(url, onResult)
-    }
-    fun search(query: String, onResult: (List<GifResult>) -> Unit) {
-        val url = "https://api.klipy.com/api/v1/$API_KEY/gifs/search?q=$query&limit=50"
-        fetch(url, onResult)
-    }
+    /**
+     * type = "gifs" or "stickers". Blank query = trending.
+     * Callback gets null on a network/API error, an empty list for "no results".
+     */
+    fun fetch(type: String, query: String, onResult: (List<GifResult>?) -> Unit) {
+        val base = "https://api.klipy.com/api/v1/$API_KEY/$type"
+        val url = if (query.isBlank()) {
+            "$base/trending?per_page=40"
+        } else {
+            "$base/search?q=${URLEncoder.encode(query.trim(), "UTF-8")}&per_page=40"
+        }
 
-    private fun fetch(url: String, onResult: (List<GifResult>) -> Unit) {
-        val request = Request.Builder().url(url).build()
-        client.newCall(request).enqueue(object : okhttp3.Callback {
+        client.newCall(Request.Builder().url(url).build()).enqueue(object : okhttp3.Callback {
             override fun onFailure(call: okhttp3.Call, e: IOException) {
-                android.util.Log.e("KeureGif", "Network failure", e)
-                onResult(emptyList())
+                android.util.Log.e("KeureMedia", "Network failure ($type)", e)
+                onResult(null)
             }
 
             override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
-                try {
-                    val body = response.body?.string() ?: ""
-                    android.util.Log.d("KeureGif", "Response code=${response.code}, body first 300 chars: ${body.take(300)}")
-                    val results = parseGifs(body)
-                    android.util.Log.d("KeureGif", "Parsed ${results.size} gifs")
-                    onResult(results)
-                } catch (e: Exception) {
-                    android.util.Log.e("KeureGif", "Parse exception", e)
-                    onResult(emptyList())
+                response.use {
+                    try {
+                        val body = it.body?.string() ?: ""
+                        if (!it.isSuccessful) {
+                            android.util.Log.e("KeureMedia", "HTTP ${it.code} ($type): ${body.take(200)}")
+                            onResult(null)
+                            return
+                        }
+                        val results = parse(body, type)
+                        android.util.Log.d("KeureMedia", "Parsed ${results.size} $type for '$query'")
+                        onResult(results)
+                    } catch (e: Exception) {
+                        android.util.Log.e("KeureMedia", "Parse failure ($type)", e)
+                        onResult(null)
+                    }
                 }
             }
         })
     }
 
-    private fun parseGifs(json: String): List<GifResult> {
-        val list = mutableListOf<GifResult>()
-        val root = JSONObject(json)
+    private val sizes = listOf("sm", "md", "xs", "hd")
 
-        val outerData = root.optJSONObject("data") ?: return list
-        val items = outerData.optJSONArray("data") ?: return list
-
-        for (i in 0 until items.length()) {
-            val item = items.getJSONObject(i)
-            val files = item.optJSONObject("file") ?: continue
-
-            val previewUrl = files.optJSONObject("sm")?.optJSONObject("gif")?.optString("url")
-            val insertUrl = files.optJSONObject("sm")?.optJSONObject("gif")?.optString("url")
-            val fullUrl = files.optJSONObject("md")?.optJSONObject("gif")?.optString("url")
-
-            if (!previewUrl.isNullOrEmpty() && !fullUrl.isNullOrEmpty() && !insertUrl.isNullOrEmpty()) {
-                list.add(GifResult(previewUrl, fullUrl, insertUrl))
+    private fun pick(files: JSONObject, formats: List<String>): Pair<String, String>? {
+        for (size in sizes) {
+            val bucket = files.optJSONObject(size) ?: continue
+            for (format in formats) {
+                val url = bucket.optJSONObject(format)?.optString("url")
+                if (!url.isNullOrEmpty()) return url to format
             }
+        }
+        return null
+    }
+
+    private fun mimeFor(format: String) = when (format) {
+        "png" -> "image/png"
+        "webp" -> "image/webp"
+        "jpg" -> "image/jpeg"
+        else -> "image/gif"
+    }
+
+    private fun parse(json: String, type: String): List<GifResult> {
+        val items = JSONObject(json).optJSONObject("data")?.optJSONArray("data") ?: return emptyList()
+        val sticker = type == "stickers"
+        val previewFormats = if (sticker) listOf("webp", "png", "gif") else listOf("gif", "webp")
+        val insertFormats = if (sticker) listOf("png", "webp", "gif") else listOf("gif")
+
+        val list = mutableListOf<GifResult>()
+        for (i in 0 until items.length()) {
+            val files = items.getJSONObject(i).optJSONObject("file") ?: continue
+            val preview = pick(files, previewFormats) ?: continue
+            val insert = pick(files, insertFormats) ?: continue
+            list.add(GifResult(preview.first, insert.first, insert.first, mimeFor(insert.second), type))
         }
         return list
     }
